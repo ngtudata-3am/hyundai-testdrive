@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: hyundai-testdrive
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt && python3 scripts/setup_brain_tables.py && python3 scripts/seed_products.py
+    startCommand: gunicorn server:app --bind 0.0.0.0:$PORT
+    healthCheckPath: /api/products
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+      - key: SEPAY_BANK_BIN
+        value: "970432"
+      - key: SEPAY_BANK_ACCOUNT
+        sync: false
+      - key: SEPAY_BANK_ACCOUNT_NAME
+        sync: false
+      - key: SEPAY_BANK_NAME
+        value: "VPBank"
+      - key: SEPAY_PAYMENT_PREFIX
+        value: "HYU"
+      - key: SEPAY_TEST_AMOUNT
+        value: "2000"
+      - key: PUBLIC_WEBHOOK_URL
+        value: "https://laithuhyundai.online/api/sepay/webhook"
+      - key: SEPAY_MERCHANT_ID
+        sync: false
+      - key: SEPAY_SECRET_KEY
+        sync: false
+      - key: SEPAY_ENV
+        value: "sandbox"
