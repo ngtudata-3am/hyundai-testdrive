@@ -36,11 +36,15 @@ def sepay_config() -> tuple[str, str, str, int]:
 
 
 def bank_config() -> dict | None:
-    bin_id = os.getenv("SEPAY_BANK_BIN", "").strip()
-    account = os.getenv("SEPAY_BANK_ACCOUNT", "").strip()
-    account_name = remove_accents(os.getenv("SEPAY_BANK_ACCOUNT_NAME", "").strip())
-    bank_name = os.getenv("SEPAY_BANK_NAME", "").strip()
+    bin_id = os.getenv("SEPAY_BANK_BIN", "970407").strip()
+    account = os.getenv("SEPAY_BANK_ACCOUNT", "0921451991").strip()
+    account_name = remove_accents(os.getenv("SEPAY_BANK_ACCOUNT_NAME", "LE NGOC TU").strip())
+    bank_name = os.getenv("SEPAY_BANK_NAME", "Techcombank").strip()
     prefix = os.getenv("SEPAY_PAYMENT_PREFIX", "HYU").strip()
+    # SePay liên kết Techcombank 0921451991 — tránh QR VPBank cũ từ env chưa cập nhật
+    if bank_name.lower() == "vpbank" or bin_id == "970432":
+        bank_name = "Techcombank"
+        bin_id = "970407"
     if not bin_id or not account or not account_name:
         return None
     return {
