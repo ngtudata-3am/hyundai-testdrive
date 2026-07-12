@@ -10,13 +10,13 @@ services:
       - key: PYTHON_VERSION
         value: "3.12.0"
       - key: SEPAY_BANK_BIN
-        value: "970432"
+        value: "970407"
       - key: SEPAY_BANK_ACCOUNT
         sync: false
       - key: SEPAY_BANK_ACCOUNT_NAME
         sync: false
       - key: SEPAY_BANK_NAME
-        value: "VPBank"
+        value: "Techcombank"
       - key: SEPAY_PAYMENT_PREFIX
         value: "HYU"
       - key: SEPAY_TEST_AMOUNT
