@@ -64,11 +64,11 @@ def normalize_account_number(account: str) -> str:
     return re.sub(r"\s+", "", account.strip())
 
 
-def vietqr_url(bank_name: str, account: str, amount: int, content: str) -> str:
-    """SePay khuyến nghị vietqr.app — app ngân hàng nhận diện STK chính xác hơn img.vietqr.io."""
+def vietqr_url(bank_name: str, account: str, amount: int, content: str, *, bin_id: str | None = None) -> str:
+    """SePay khuyến nghị vietqr.app — dùng mã BIN (970432) chính xác hơn tên ngân hàng."""
     params = {
         "acc": normalize_account_number(account),
-        "bank": bank_name.strip(),
+        "bank": (bin_id or bank_name).strip(),
         "amount": str(amount),
         "des": content,
         "template": "compact2",
@@ -388,6 +388,7 @@ def payment_checkout():
         bank["account_number"],
         amount,
         transfer_content,
+        bin_id=bank["bin_id"],
     )
 
     return jsonify({
