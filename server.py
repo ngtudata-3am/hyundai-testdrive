@@ -623,6 +623,12 @@ def list_customers():
     return jsonify(rows_to_list(rows))
 
 
+@app.get("/api/email/health")
+def email_health_route():
+    """Kiểm tra cấu hình Resend trên server (không gửi email)."""
+    return jsonify(resend_mail.email_health())
+
+
 @app.post("/api/waitlist")
 def register_waitlist():
     """Đăng ký waitlist — lưu khách hàng kèm email (dùng cho form trên website)."""
@@ -637,13 +643,15 @@ def register_waitlist():
     conn = get_db()
     customer_id = upsert_customer(conn, name, phone, email)
     conn.commit()
+    email_results: list[dict] = []
     try:
-        resend_mail.handle_waitlist_emails(conn, customer_id, name, email)
+        email_results = resend_mail.handle_waitlist_emails(conn, customer_id, name, email)
         resend_mail.process_email_queue(conn)
     except Exception as exc:
         app.logger.warning("Waitlist email failed: %s", exc)
+        email_results = [{"ok": False, "error": str(exc)}]
     conn.close()
-    return jsonify({"ok": True, "customer_id": customer_id})
+    return jsonify({"ok": True, "customer_id": customer_id, "email_results": email_results})
 
 
 @app.post("/api/customers")

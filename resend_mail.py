@@ -130,6 +130,7 @@ def send_email(*, to: str, subject: str, html: str) -> dict:
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
+            "User-Agent": "hyundai-testdrive/1.0",
         },
         method="POST",
     )
@@ -139,7 +140,14 @@ def send_email(*, to: str, subject: str, html: str) -> dict:
             return {"ok": True, "id": data.get("id")}
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
-        return {"ok": False, "error": detail or str(exc)}
+        try:
+            parsed = json.loads(detail)
+            message = parsed.get("message") or parsed.get("error") or detail
+        except json.JSONDecodeError:
+            message = detail or str(exc)
+        return {"ok": False, "error": message, "status": exc.code}
+    except urllib.error.URLError as exc:
+        return {"ok": False, "error": str(exc.reason or exc)}
 
 
 def ensure_email_queue(conn: sqlite3.Connection) -> None:
@@ -266,12 +274,27 @@ def process_email_queue(conn: sqlite3.Connection) -> None:
         conn.commit()
 
 
-def handle_waitlist_emails(conn: sqlite3.Connection, customer_id: int, name: str, email: str) -> None:
+def email_health() -> dict:
+    templates = _parse_templates()
+    return {
+        "api_key_configured": bool(load_api_key()),
+        "from": sender_address(),
+        "templates_loaded": len(templates),
+        "sequence_file_exists": SEQUENCE_PATH.exists(),
+    }
+
+
+def handle_waitlist_emails(conn: sqlite3.Connection, customer_id: int, name: str, email: str) -> list[dict]:
     """Email 1 ngay; +test → gửi cả 3; không test → hàng Email 2, 3."""
+    results: list[dict] = []
     if is_test_mode(email):
         for num, fn in [(1, send_welcome_email), (2, send_nurture_email), (3, send_close_email)]:
-            fn(email, name)
-        return
+            sent = fn(email, name)
+            results.append({"email": num, **sent})
+        return results
 
-    send_welcome_email(email, name)
-    queue_followup_emails(conn, customer_id, email)
+    sent = send_welcome_email(email, name)
+    results.append({"email": 1, **sent})
+    if sent.get("ok"):
+        queue_followup_emails(conn, customer_id, email)
+    return results
