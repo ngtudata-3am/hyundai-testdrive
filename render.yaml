@@ -10,13 +10,13 @@ services:
       - key: PYTHON_VERSION
         value: "3.12.0"
       - key: SEPAY_BANK_BIN
-        value: "970407"
+        value: "970432"
       - key: SEPAY_BANK_ACCOUNT
         sync: false
       - key: SEPAY_BANK_ACCOUNT_NAME
         sync: false
       - key: SEPAY_BANK_NAME
-        value: "Techcombank"
+        value: "VPBank"
       - key: SEPAY_PAYMENT_PREFIX
         value: "HYU"
       - key: SEPAY_TEST_AMOUNT
@@ -29,3 +29,7 @@ services:
         sync: false
       - key: SEPAY_ENV
         value: "sandbox"
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM
+        value: "Hyundai Thành Công Quảng Bình <sales@laithuhyundai.online>"

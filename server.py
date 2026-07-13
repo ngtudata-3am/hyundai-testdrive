@@ -15,6 +15,8 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, redirect, request, send_from_directory
 from flask_cors import CORS
 
+import resend_mail
+
 ROOT = Path(__file__).resolve().parent
 DB_PATH = ROOT / "brain.db"
 
@@ -36,15 +38,11 @@ def sepay_config() -> tuple[str, str, str, int]:
 
 
 def bank_config() -> dict | None:
-    bin_id = os.getenv("SEPAY_BANK_BIN", "970407").strip()
+    bin_id = os.getenv("SEPAY_BANK_BIN", "970432").strip()
     account = os.getenv("SEPAY_BANK_ACCOUNT", "0921451991").strip()
     account_name = remove_accents(os.getenv("SEPAY_BANK_ACCOUNT_NAME", "LE NGOC TU").strip())
-    bank_name = os.getenv("SEPAY_BANK_NAME", "Techcombank").strip()
+    bank_name = os.getenv("SEPAY_BANK_NAME", "VPBank").strip()
     prefix = os.getenv("SEPAY_PAYMENT_PREFIX", "HYU").strip()
-    # SePay liên kết Techcombank 0921451991 — tránh QR VPBank cũ từ env chưa cập nhật
-    if bank_name.lower() == "vpbank" or bin_id == "970432":
-        bank_name = "Techcombank"
-        bin_id = "970407"
     if not bin_id or not account or not account_name:
         return None
     return {
@@ -190,12 +188,21 @@ def mark_payment_paid(
 
 
 def extract_invoice_from_webhook(data: dict, prefix: str) -> str | None:
-    code = data.get("code")
-    if isinstance(code, str) and code.upper().startswith(prefix.upper()):
-        return code.upper()
-    content = (data.get("content") or "").upper()
-    match = re.search(rf"{re.escape(prefix.upper())}-\d+", content)
-    return match.group(0) if match else None
+    prefix_u = prefix.upper()
+    pattern = re.compile(rf"{re.escape(prefix_u)}-?\d+")
+    for raw in (data.get("code"), data.get("content"), data.get("description")):
+        if not isinstance(raw, str) or not raw.strip():
+            continue
+        match = pattern.search(raw.upper())
+        if not match:
+            continue
+        token = match.group(0)
+        if "-" in token:
+            return token
+        digits = token[len(prefix_u):]
+        if digits.isdigit():
+            return f"{prefix_u}-{digits}"
+    return None
 
 
 def upsert_customer(conn: sqlite3.Connection, name: str, phone: str, email: str | None = None) -> int:
@@ -630,6 +637,11 @@ def register_waitlist():
     conn = get_db()
     customer_id = upsert_customer(conn, name, phone, email)
     conn.commit()
+    try:
+        resend_mail.handle_waitlist_emails(conn, customer_id, name, email)
+        resend_mail.process_email_queue(conn)
+    except Exception as exc:
+        app.logger.warning("Waitlist email failed: %s", exc)
     conn.close()
     return jsonify({"ok": True, "customer_id": customer_id})
 
@@ -824,6 +836,23 @@ def create_order():
         conn.rollback()
         conn.close()
         return jsonify({"error": str(exc)}), 400
+
+    try:
+        customer_row = conn.execute(
+            "SELECT name, email FROM customers WHERE id = ?", (customer_id,)
+        ).fetchone()
+        if customer_row and customer_row["email"]:
+            resend_mail.send_order_confirmation(
+                to=customer_row["email"],
+                name=customer_row["name"],
+                order_id=cur.lastrowid,
+                product_name=row["product_name"],
+                amount=amount,
+                status=status,
+            )
+        resend_mail.process_email_queue(conn)
+    except Exception as exc:
+        app.logger.warning("Order confirmation email failed: %s", exc)
 
     conn.close()
     return jsonify(row_to_dict(row)), 201
