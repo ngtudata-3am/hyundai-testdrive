@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sqlite3
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -15,7 +16,7 @@ ROOT = Path(__file__).resolve().parent
 SEQUENCE_PATH = ROOT / "email_sequence.md"
 RESEND_CONFIG_PATH = ROOT / "resend_config.txt"
 
-DEFAULT_FROM = "Hyundai Thành Công Quảng Bình <sales@laithuhyundai.online>"
+DEFAULT_FROM = "sales@laithuhyundai.online"
 PAYMENT_URL = "https://laithuhyundai.online/thanh-toan"
 
 
@@ -31,9 +32,25 @@ def load_api_key() -> str:
     return ""
 
 
+def normalize_from_address(raw: str) -> str:
+    """Chuẩn hóa From — fix lỗi Render env kiểu `<email@domain.com>`."""
+    addr = (raw or "").strip()
+    if not addr:
+        return DEFAULT_FROM
+    if addr.startswith("<") and addr.endswith(">"):
+        inner = addr[1:-1].strip()
+        if re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", inner):
+            return inner
+    if re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", addr):
+        return addr
+    match = re.match(r"^(.+?)\s*<([^>]+)>$", addr)
+    if match and re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", match.group(2).strip()):
+        return f"{match.group(1).strip()} <{match.group(2).strip()}>"
+    return DEFAULT_FROM
+
+
 def sender_address() -> str:
-    addr = os.getenv("RESEND_FROM", DEFAULT_FROM).strip()
-    return addr or DEFAULT_FROM
+    return normalize_from_address(os.getenv("RESEND_FROM", DEFAULT_FROM))
 
 
 def is_test_mode(email: str) -> bool:
@@ -291,6 +308,7 @@ def handle_waitlist_emails(conn: sqlite3.Connection, customer_id: int, name: str
         for num, fn in [(1, send_welcome_email), (2, send_nurture_email), (3, send_close_email)]:
             sent = fn(email, name)
             results.append({"email": num, **sent})
+            time.sleep(0.6)
         return results
 
     sent = send_welcome_email(email, name)
